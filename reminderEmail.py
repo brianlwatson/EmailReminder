@@ -1,11 +1,14 @@
 import Tkinter
-import datetime
+from datetime import datetime, timedelta
 import smtplib
+import time
+from time import sleep
+import threading
 from email.mime.text import MIMEText
-
 GMAIL = 'smtp.gmail.com'
 GMAIL_PORT = 587
 
+TEN_MINUTES=1000*60*10 
 
 class BugScript(object):
 	def __init__(self, root):
@@ -16,6 +19,7 @@ class BugScript(object):
 		self.password=""
 		self.subject =""
 		self.message=""
+		self.message_count = 0
 		self.msg     ={}
 
 		self.lUser    = Tkinter.Label(root, text="Username: ").grid(row=0)
@@ -41,20 +45,20 @@ class BugScript(object):
 	def sendMessage(self):
 		self.setValues()
 
-	def sendEmail(self, user, pwd, recipient, subject, body):
-	    recip = recipient if type(recipient) is list else [recipient]
-
-	    message = """From: %s\nTo: %s\nSubject: %s\n\n%s
-	    """ % (user, ", ".join(recip), subject, body)
-
+	def sendEmail(self):
+	    recip = self.destname if type(self.destname) is list else [self.destname]
+	    self.message_count = self.message_count + 1
+	    message_tag = "Message #%d Generated at %s" % (self.message_count, str(datetime.now()))
+	    message = ("""From: %s\nTo: %s\nSubject: %s\n\n%s\n\n\n""" % (self.username, ", ".join(recip), self.subject, self.message))+message_tag
+	    self.message = self.message + "\n\n\n" + message_tag
 	    print message
 
 	    try:
 	        server = smtplib.SMTP(GMAIL, GMAIL_PORT)
 	        server.ehlo()
 	        server.starttls()
-	        server.login(user, pwd)
-	        server.sendmail(user, recipient, message)
+	        server.login(self.username, self.password)
+	        server.sendmail(self.username, recip, self.message)
 	        server.close()
 	        print 'successfully sent the mail'
 	    except:
@@ -67,22 +71,30 @@ class BugScript(object):
 		self.subject =  self.fSubject.get()
 		self.message = self.fMessage.get("1.0", "end-1c")
 		self.reminder_active = 1
-
-		self.sendEmail(self.username, self.password, self.destname, self.subject, self.message)
+		self.activeButton.configure(bg="green")
+		self.sendEmail()
 
 	def toggleDisable(self):
 		self.reminder_active = not self.reminder_active
+		print "Active Status %d", self.reminder_active
+		#FIXME - Button Coloring not working in OS X
 		if self.reminder_active:
-			print "0"
-			self.activeButton = Tkinter.Button(root, text = 'ACTIVE', command = self.toggleDisable)
 			self.activeButton.configure(bg="red")
+
 		else:
-			print "1"
-			self.activeButton = Tkinter.Button(root, text = 'INACTIVE', command = self.toggleDisable)
 			self.activeButton.configure(bg="green")
 
 root = Tkinter.Tk()
 root.title("BugScript")
 bs = BugScript(root)
+
+def handleSend():
+	root.after(TEN_MINUTES, handleSend)
+	print "\n\nCHECKING ACTIVE STATUS"
+	if bs.reminder_active == 1:
+		bs.sendMessage()
+
+root.after(TEN_MINUTES, handleSend)
+
 root.mainloop()
 
